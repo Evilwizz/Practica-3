@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Turbo Racer 2D - PC3 Videojuegos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="img/carro.png">
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <!-- Cabecera Superior con Datos del Estudiante -->
+        <div class="header-card">
+            <div class="header-top">
+                <span class="game-title">🏎️ TURBO RACER 2D</span>
+                <button id="btnSoundToggle" class="sound-toggle-btn" title="Activar / Desactivar Sonido">
+                    <span id="soundIcon">🔊</span> <span id="soundLabel">Audio: ON</span>
+                </button>
+            </div>
+
+            <!-- Campo editable de Nombre y Apellido -->
+            <div class="player-input-group">
+                <label for="inputJugador" class="player-input-label">Piloto / Estudiante (Nombre y Apellido):</label>
+                <div class="input-box">
+                    <input type="text" id="inputJugador" class="player-input" placeholder="Ingresa tu Nombre y Apellido" maxlength="35" value="Aldair Jose Lozano Santiago">
+                    <button id="btnGuardarNombre" class="btn-save-name">Actualizar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marco Arcade con el Canvas de Phaser (290 x 540) -->
+        <div class="arcade-frame">
+            <div id="runner"></div>
+        </div>
+
+        <!-- Controles Táctiles para Móvil / Mouse -->
+        <div class="touch-controls">
+            <button id="btnTouchLeft" class="touch-btn" aria-label="Mover a la Izquierda">⬅️ IZQ</button>
+            <button id="btnTouchRight" class="touch-btn" aria-label="Mover a la Derecha">DER ➡️</button>
+        </div>
+
+        <!-- Barra de Pruebas / Navegación Rápida para el Evaluador -->
+        <div class="dev-controls">
+            <span style="font-size:0.7rem; color:#94a3b8; width:100%; text-align:center; margin-bottom:2px;">Accesos directos de evaluación:</span>
+            <button class="nav-pill" onclick="irAEstado('Portada')">🏠 Portada</button>
+            <button class="nav-pill" onclick="irAEstado('Juego')">🏁 Nivel 1</button>
+            <button class="nav-pill" onclick="irAEstado('Nivel2')">🔥 Nivel 2</button>
+            <button class="nav-pill" onclick="irAEstado('Ganaste')">🏆 Ganaste</button>
+            <button class="nav-pill" onclick="irAEstado('Terminado')">💀 Reintentar</button>
+        </div>
+
+        <div class="footer-info">
+            <p>Controles: Flechas <strong>[←] [→]</strong> o teclas <strong>[A] [D]</strong> | [ENTER] / [ESPACIO]</p>
+            <p>Meta: Acumula <strong>3 barriles</strong> para pasar al Nivel 2 | <strong>6 barriles</strong> para Ganar</p>
+            <p style="margin-top:4px; color:#475569;">Desarrollado con Phaser 2 CE & Web Audio API - UTP 2026</p>
+        </div>
+    </div>
+
+    <!-- Scripts de la arquitectura del juego -->
+    <script>
+        // Manejador global del Nombre y Apellido
+        window.touchLeft = false;
+        window.touchRight = false;
+
+        // Cargar nombre predeterminado oficial
+        if (!localStorage.getItem('carGame_playerName') || localStorage.getItem('carGame_playerName') === 'Estudiante UTP') {
+            localStorage.setItem('carGame_playerName', 'Aldair Jose Lozano Santiago');
+        }
+
+        window.getNombreJugador = function() {
+            var guardado = localStorage.getItem('carGame_playerName');
+            if (guardado && guardado.trim() !== '') {
+                return guardado.trim();
+            }
+            var input = document.getElementById('inputJugador');
+            return (input && input.value.trim() !== '') ? input.value.trim() : 'Aldair Jose Lozano Santiago';
+        };
+
+        window.setNombreJugador = function(nombre) {
+            if (!nombre || nombre.trim() === '') nombre = 'Aldair Jose Lozano Santiago';
+            localStorage.setItem('carGame_playerName', nombre.trim());
+            var input = document.getElementById('inputJugador');
+            if (input) input.value = nombre.trim();
+
+            // Actualizar estado activo en Phaser
+            if (window.juego && window.juego.state && window.juego.state.getCurrentState) {
+                var actual = window.juego.state.getCurrentState();
+                if (actual && actual.actualizarHUD) {
+                    actual.actualizarHUD();
+                } else if (actual && actual.actualizarNombre) {
+                    actual.actualizarNombre(nombre.trim());
+                }
+            }
+        };
+
+        // Acceso rápido para el evaluador o docente
+        window.irAEstado = function(nombreEstado) {
+            if (window.juego && window.juego.state) {
+                if (nombreEstado === 'Juego') {
+                    juego.state.start('Juego', true, false, { vidas: 3, puntos: 0, nivel: 1 });
+                } else if (nombreEstado === 'Nivel2') {
+                    juego.state.start('Nivel2', true, false, { vidas: 3, puntos: 3, nivel: 2 });
+                } else if (nombreEstado === 'Ganaste') {
+                    juego.state.start('Ganaste', true, false, { vidas: 3, puntos: 6 });
+                } else if (nombreEstado === 'Terminado') {
+                    juego.state.start('Terminado', true, false, { vidas: 0, puntos: 2, nivel: 1 });
+                } else {
+                    juego.state.start('Portada');
+                }
+            }
+        };
+
+        // Eventos del DOM al cargar
+        document.addEventListener('DOMContentLoaded', function() {
+            var input = document.getElementById('inputJugador');
+            var btnGuardar = document.getElementById('btnGuardarNombre');
+            var btnSound = document.getElementById('btnSoundToggle');
+            var soundIcon = document.getElementById('soundIcon');
+            var soundLabel = document.getElementById('soundLabel');
+
+            // Cargar nombre almacenado
+            var guardado = localStorage.getItem('carGame_playerName');
+            if (guardado) {
+                input.value = guardado;
+            }
+
+            function guardar() {
+                var val = input.value.trim();
+                if (val === '') val = 'Aldair Jose Lozano Santiago';
+                window.setNombreJugador(val);
+                btnGuardar.textContent = '✓ Listo';
+                setTimeout(function() { btnGuardar.textContent = 'Actualizar'; }, 1200);
+            }
+
+            btnGuardar.addEventListener('click', guardar);
+            input.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') guardar();
+                else localStorage.setItem('carGame_playerName', input.value.trim());
+            });
+
+            // Botón de sonido
+            btnSound.addEventListener('click', function() {
+                if (window.Sonidos) {
+                    var isMuted = Sonidos.toggleMute();
+                    soundIcon.textContent = isMuted ? '🔇' : '🔊';
+                    soundLabel.textContent = isMuted ? 'Audio: OFF' : 'Audio: ON';
+                }
+            });
+
+            // Botones táctiles
+            var btnLeft = document.getElementById('btnTouchLeft');
+            var btnRight = document.getElementById('btnTouchRight');
+
+            function bindTouch(element, leftVal, rightVal) {
+                var start = function(e) {
+                    e.preventDefault();
+                    window.touchLeft = leftVal;
+                    window.touchRight = rightVal;
+                    element.classList.add('active');
+                };
+                var end = function(e) {
+                    e.preventDefault();
+                    window.touchLeft = false;
+                    window.touchRight = false;
+                    element.classList.remove('active');
+                };
+                element.addEventListener('mousedown', start);
+                element.addEventListener('mouseup', end);
+                element.addEventListener('mouseleave', end);
+                element.addEventListener('touchstart', start, { passive: false });
+                element.addEventListener('touchend', end, { passive: false });
+                element.addEventListener('touchcancel', end, { passive: false });
+            }
+
+            bindTouch(btnLeft, true, false);
+            bindTouch(btnRight, false, true);
+        });
+    </script>
+
+    <!-- Librería Phaser 2 CE -->
+    <script src="js/phaser.js"></script>
+
+    <!-- Motor de Sonidos (Web Audio API + WAV) -->
+    <script src="js/sonidos.js"></script>
+
+    <!-- Estados del Juego -->
+    <script src="js/portada.js"></script>
+    <script src="js/juego.js"></script>
+    <script src="js/nivel2.js"></script>
+    <script src="js/ganaste.js"></script>
+    <script src="js/terminado.js"></script>
+
+    <!-- Inicialización del juego -->
+    <script src="js/principal.js"></script>
+</body>
+</html>
